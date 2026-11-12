@@ -32,7 +32,7 @@ Model-card descriptions and licences are claims to verify, not an endorsement or
 
 ## Evaluation and release gates
 
-Use synthetic messages only. The first screening set will contain 240 examples, balanced across Najdi, Hijazi and Gulf Arabic. Add and report an Egyptian slice separately if the business scope includes that subsidiary. Label each message with intent, dialect, spans for synthetic PII, expected tool/action and whether escalation is required. Keep a held-out test split and report per-dialect results as well as aggregate results.
+Use synthetic messages only. An initial 240-row draft is generated under `eval/dataset/benchmark-draft.jsonl`, balanced across Najdi, Hijazi, Gulf and Egyptian Arabic, with intent, dialect, synthetic PII spans, expected action and escalation labels. It has development, validation and held-out splits. A separate 1,000-row, PII-positive draft is in `eval/dataset/pii-stress-draft.jsonl`. Both are systematic, unreviewed drafts; neither is validated benchmark evidence until Arabic-speaking reviewers approve the language, dialect, labels and policy cases. The stress set contains positives only and cannot establish precision or production readiness.
 
 The following are proposed initial gates, not measured results. Confirm them with the CDO, CCO, DPO and care operations before production:
 
@@ -47,7 +47,7 @@ The following are proposed initial gates, not measured results. Confirm them wit
 
 For each run, record the dataset revision, candidate/model revision, deployment region and SKU, prompt version, load, input/output token counts or compute time, latency percentiles, errors, escalation rate, quality metrics and dated price source. Cost per safe resolution is total measured serving and request cost divided by conversations resolved without an unsafe action and without human intervention. Also report cost per attempted conversation and escalation rate so that a low cost cannot be manufactured by excluding failures.
 
-The 240-example set is for initial comparison, not statistical proof of a 99% PII recall rate. Expand the stress set and report confidence intervals before treating a gate as evidence of production safety. Test the exact production deployment in Saudi Arabia East when it is available; a synthetic-data run in UAE North is only a labelled staging stand-in.
+The 240-example draft is for initial comparison, not statistical proof of a 99% PII recall rate. Independently review and expand the stress set, add negative PII examples, and report confidence intervals before treating a gate as evidence of production safety. Test the exact production deployment in Saudi Arabia East when it is available; a synthetic-data run in UAE North is only a labelled staging stand-in.
 
 ## Alternatives considered
 

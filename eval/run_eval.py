@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Score JSONL predictions against the synthetic Arabic smoke set."""
+"""Score JSONL predictions against a synthetic Arabic evaluation dataset."""
 
 import argparse
 import json
@@ -9,7 +9,7 @@ from collections import Counter
 from pathlib import Path
 
 
-DEFAULT_DATASET = Path(__file__).parent / "dataset" / "smoke.jsonl"
+DEFAULT_DATASET = Path(__file__).parent / "dataset" / "benchmark-draft.jsonl"
 
 
 def read_jsonl(path):
@@ -33,7 +33,7 @@ def require_fields(row, fields, path, index):
         raise ValueError(f"{path}: row {index} is missing fields: {', '.join(sorted(missing))}")
 
 
-def load_dataset(path):
+def load_dataset(path, split="all"):
     rows = read_jsonl(path)
     if not rows:
         raise ValueError(f"{path}: dataset is empty")
@@ -51,12 +51,20 @@ def load_dataset(path):
             raise ValueError(f"{path}: duplicate id {row['id']!r}")
         if not isinstance(row["pii_spans"], list) or not isinstance(row["should_escalate"], bool):
             raise ValueError(f"{path}: row {index} has invalid pii_spans or should_escalate")
+        if "split" in row and row["split"] not in {"development", "validation", "heldout"}:
+            raise ValueError(f"{path}: row {index} has an invalid split")
         for span in row["pii_spans"]:
             if not isinstance(span, dict) or not isinstance(span.get("text"), str) or not span["text"]:
                 raise ValueError(f"{path}: row {index} has an invalid PII span")
             if not isinstance(span.get("type"), str) or span["text"] not in row["text"]:
                 raise ValueError(f"{path}: row {index} has a PII span not found in text")
         seen.add(row["id"])
+    if split != "all":
+        if any("split" not in row for row in rows):
+            raise ValueError(f"{path}: --split {split} requires split labels on every row")
+        rows = [row for row in rows if row["split"] == split]
+        if not rows:
+            raise ValueError(f"{path}: split {split!r} contains no rows")
     return rows
 
 
@@ -127,6 +135,16 @@ def percentile(values, percentile):
     return ordered[max(0, math.ceil(percentile * len(ordered)) - 1)]
 
 
+def wilson_interval(successes, total, z=1.96):
+    if not total:
+        return None
+    proportion = successes / total
+    denominator = 1 + z * z / total
+    centre = (proportion + z * z / (2 * total)) / denominator
+    margin = z * math.sqrt(proportion * (1 - proportion) / total + z * z / (4 * total * total)) / denominator
+    return [max(0.0, centre - margin), min(1.0, centre + margin)]
+
+
 def evaluate(dataset, predictions):
     truth = [row["intent"] for row in dataset]
     predicted = [predictions[row["id"]]["predicted_intent"] for row in dataset]
@@ -155,12 +173,41 @@ def evaluate(dataset, predictions):
     )
     total_cost = sum(predictions[row["id"]]["cost_usd"] for row in dataset)
     latencies = [predictions[row["id"]]["latency_ms"] for row in dataset]
+    by_dialect = {}
+    for dialect in sorted({row["dialect"] for row in dataset}):
+        indexes = [index for index, row in enumerate(dataset) if row["dialect"] == dialect]
+        dialect_expected = Counter()
+        dialect_found = Counter()
+        for index in indexes:
+            row = dataset[index]
+            dialect_expected.update((span["text"], span["type"]) for span in row["pii_spans"])
+            dialect_found.update(
+                (span["text"], span["type"])
+                for span in predictions[row["id"]]["predicted_pii"]
+            )
+        dialect_pii_total = sum(dialect_expected.values())
+        dialect_pii_matched = sum(
+            min(count, dialect_found[key]) for key, count in dialect_expected.items()
+        )
+        by_dialect[dialect] = {
+            "examples": len(indexes),
+            "intent_accuracy": sum(intent_correct[index] for index in indexes) / len(indexes),
+            "intent_macro_f1": macro_f1(
+                [truth[index] for index in indexes],
+                [predicted[index] for index in indexes],
+            ),
+            "pii_span_recall": (
+                dialect_pii_matched / dialect_pii_total if dialect_pii_total else None
+            ),
+            "action_accuracy": sum(action_correct[index] for index in indexes) / len(indexes),
+        }
 
     return {
         "examples": len(dataset),
         "intent_accuracy": sum(intent_correct) / len(dataset),
         "intent_macro_f1": macro_f1(truth, predicted),
         "pii_span_recall": pii_matched / pii_total if pii_total else None,
+        "pii_span_recall_wilson_95": wilson_interval(pii_matched, pii_total),
         "pii_spans_matched": pii_matched,
         "pii_spans_expected": pii_total,
         "action_accuracy": sum(action_correct) / len(dataset),
@@ -171,16 +218,23 @@ def evaluate(dataset, predictions):
         "total_cost_usd": total_cost,
         "safe_resolutions": safe_resolutions,
         "cost_per_safe_resolution_usd": total_cost / safe_resolutions if safe_resolutions else None,
+        "by_dialect": by_dialect,
     }
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
+    parser.add_argument(
+        "--split",
+        choices=("all", "development", "validation", "heldout"),
+        default="all",
+        help="evaluate one labeled split; default evaluates all rows",
+    )
     parser.add_argument("--predictions", type=Path, required=True, help="JSONL model outputs matching the README schema")
     args = parser.parse_args()
     try:
-        dataset = load_dataset(args.dataset)
+        dataset = load_dataset(args.dataset, args.split)
         predictions = load_predictions(args.predictions, {row["id"] for row in dataset})
         print(json.dumps(evaluate(dataset, predictions), indent=2, ensure_ascii=False))
     except (OSError, ValueError) as error:

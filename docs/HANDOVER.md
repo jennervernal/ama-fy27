@@ -5,8 +5,10 @@ _Last updated: Thu 12 Nov 2026. Written to let work continue in GitHub Copilot._
 ## Where we are
 - Case, rubric and MasterClass material analysed.
 - ADR-001 (deployment region and residency fallback) accepted and committed.
+- ADR-002 (proposed model routing pattern and evaluation gates) added.
+- `eval/` contains a 20-example synthetic dialect smoke set and a dependency-free scorer; this is scaffolding, not benchmark or production-safety evidence.
 - A personal playbook exists in OneDrive (Word, sections 1-12); this repo is the source of truth for decisions and code.
-- Not built yet: model choice, evaluation set, demo, infrastructure templates, rubric tracker.
+- Not built yet: benchmark-scale evaluation set and measured model choice, demo, infrastructure templates, rubric tracker.
 
 ## Next steps, in priority order
 1. **ADR-002: model choice and evidence** (drives A5, A6 and the demo)
@@ -15,10 +17,11 @@ _Last updated: Thu 12 Nov 2026. Written to let work continue in GitHub Copilot._
    - Define cost per resolved conversation and latency budget.
    - Note in-Kingdom availability and provenance of each candidate (open weights, licence, origin).
    - Output: `docs/adr/ADR-002-model-choice.md`.
-2. **Saudi-dialect evaluation set = TLA seed** (due 27 Nov)
-   - Synthetic customer messages in Saudi dialect (Najdi / Hijazi / Gulf), labelled with intent and PII spans.
-   - Decide size (start ~200-300 items), labelling scheme, licence, how it is generated without real data, and an evaluation script that outputs accuracy, PII recall, latency and cost.
-   - Suggested layout: `eval/dataset/`, `eval/run_eval.py`, `eval/README.md`.
+2. **Expand the Saudi-dialect evaluation set = TLA seed** (due 27 Nov)
+   - Expand the 20-row synthetic smoke fixture to a reviewed, held-out set of ~200-300 items across Najdi / Hijazi / Gulf, plus Egyptian if in scope, labelled with intent and PII spans.
+   - Build a separate PII-positive stress set large enough to assess the proposed recall target; document generation, review, versioning and licence.
+   - Run pinned model candidates through the scorer and publish measured accuracy, PII recall, latency and cost. Current smoke results alone are not evidence for the ADR-002 release gates.
+   - Keep the existing layout: `eval/dataset/`, `eval/run_eval.py`, `eval/README.md`.
    - Publish as a Tech Community post + public repo for D3.
 3. **Demo script (< 2 minutes, B3)**
    - One Saudi-dialect message handled autonomously by the Care agent, guardrail visible, cost and latency on screen, residency check green.

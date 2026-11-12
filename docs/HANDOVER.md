@@ -6,32 +6,26 @@ _Last updated: Thu 12 Nov 2026. Written to let work continue in GitHub Copilot._
 - Case, rubric and MasterClass material analysed.
 - ADR-001 (deployment region and residency fallback) accepted and committed.
 - ADR-002 (proposed model routing pattern and evaluation gates) added.
-- `eval/` contains a 20-example synthetic dialect smoke set and a dependency-free scorer; this is scaffolding, not benchmark or production-safety evidence.
+- `eval/` contains a 240-example synthetic benchmark draft (including a held-out split), a 1,000-case synthetic PII-positive stress draft, a dependency-free generator and scorer. These are unreviewed scaffolds, not validated Arabic benchmark or production-safety evidence.
 - A personal playbook exists in OneDrive (Word, sections 1-12); this repo is the source of truth for decisions and code.
-- Not built yet: benchmark-scale evaluation set and measured model choice, demo, infrastructure templates, rubric tracker.
+- Not built yet: reviewed benchmark and measured model comparison, demo, infrastructure templates, rubric tracker.
 
 ## Next steps, in priority order
-1. **ADR-002: model choice and evidence** (drives A5, A6 and the demo)
-   - Compare: small dialect-tuned model(s) vs a larger general model vs a router that sends each request to one or the other.
-   - Define "good enough" for Saudi-dialect intent understanding and PII detection (target accuracy / recall).
-   - Define cost per resolved conversation and latency budget.
-   - Note in-Kingdom availability and provenance of each candidate (open weights, licence, origin).
-   - Output: `docs/adr/ADR-002-model-choice.md`.
-2. **Expand the Saudi-dialect evaluation set = TLA seed** (due 27 Nov)
-   - Expand the 20-row synthetic smoke fixture to a reviewed, held-out set of ~200-300 items across Najdi / Hijazi / Gulf, plus Egyptian if in scope, labelled with intent and PII spans.
-   - Build a separate PII-positive stress set large enough to assess the proposed recall target; document generation, review, versioning and licence.
-   - Run pinned model candidates through the scorer and publish measured accuracy, PII recall, latency and cost. Current smoke results alone are not evidence for the ADR-002 release gates.
-   - Keep the existing layout: `eval/dataset/`, `eval/run_eval.py`, `eval/README.md`.
+1. **Review and validate the Saudi-dialect evaluation set = TLA seed** (due 27 Nov)
+   - Arabic-speaking reviewers must correct/approve dialect wording, intent, escalation and PII labels in the 240-row draft before it is treated as benchmark evidence; keep the held-out split untouched until then.
+   - Review and expand the 1,000-case synthetic PII-positive draft; add reviewed hard cases and negative PII examples before making precision or production-safety claims.
+   - Record reviewer, dataset revision, provenance and label agreement. Then run pinned model candidates through the scorer and publish measured per-dialect quality, PII recall and confidence interval, latency and cost. Current generated sets are not evidence for the ADR-002 release gates.
+   - Files: `eval/dataset/`, `eval/generate_datasets.py`, `eval/run_eval.py`, `eval/README.md`.
    - Publish as a Tech Community post + public repo for D3.
-3. **Demo script (< 2 minutes, B3)**
+2. **Demo script (< 2 minutes, B3)**
    - One Saudi-dialect message handled autonomously by the Care agent, guardrail visible, cost and latency on screen, residency check green.
    - Write `docs/demo-script.md` first, then build only what the script needs.
-4. **Deployment kit (A1-A4)**
+3. **Deployment kit (A1-A4)**
    - `infra/main.bicep` with `location` parameter; Kingdom zone and shared zone.
    - `infra/policy/` allowed-locations + deny Global / Data Zone model deployments.
    - `scripts/residency-check` that lists every resource and model deployment with its region and fails on anything outside the allow list.
    - Rehearse the region switch (redeploy to a second region from the same templates).
-5. **Rubric-to-evidence tracker and dated plan to 11 Dec**
+4. **Rubric-to-evidence tracker and dated plan to 11 Dec**
    - `docs/rubric-tracker.md`: one row per criterion, the evidence, status, owner, gap.
 
 ## Smaller loose ends

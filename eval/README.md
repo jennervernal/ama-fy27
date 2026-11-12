@@ -1,32 +1,48 @@
-# Arabic dialect evaluation smoke set
+# Arabic dialect evaluation draft
 
-This is a small, **synthetic smoke fixture**, not the 240-example benchmark or the 1,000-case PII stress set proposed in [ADR-002](../docs/adr/ADR-002-model-choice.md). It contains 20 hand-authored examples (five each for Najdi, Hijazi, Gulf and Egyptian Arabic) to exercise the data schema and scoring code. It is not representative evidence of model quality or a production safety assessment. Ask Arabic-speaking reviewers to validate dialect wording, labels and expected actions before expanding or publishing a benchmark.
+This directory contains:
 
-All account and transaction identifiers use visibly synthetic `SYN-` values. Any phone-like value is the all-zero placeholder `0000000000`; it is not a contact number. No customer data is included. Dataset records are JSON Lines with:
+- `dataset/benchmark-draft.jsonl`: 240 synthetic, template-authored care messages (60 each for Najdi, Hijazi, Gulf and Egyptian Arabic). The split is 168 development, 24 validation and 48 held-out examples.
+- `dataset/pii-stress-draft.jsonl`: 1,000 synthetic positive cases balanced across those four dialect labels and five synthetic identifier types.
+- `dataset/smoke.jsonl`: 20 hand-authored schema and scorer examples.
+- `generate_datasets.py`: standard-library generator for both draft datasets.
+
+These are **unreviewed drafts**, not validated Arabic benchmark data, model measurements, or production safety evidence. The template patterns are systematic and may be linguistically unnatural, ambiguous or label-leaky. An Arabic-speaking reviewer must validate dialect assignment, phrasing, intent, escalation and PII labels; the held-out split must not be used to tune a model or prompt. Do not describe the generator's outputs as human-reviewed.
+
+No customer data is included. Account and transaction identifiers use synthetic `SYN-` values, emails use the reserved `.invalid` domain, and phone/national-ID placeholders contain only zeroes. Dataset records are JSON Lines with:
 
 - `id`, `dialect`, `text`, `intent`
 - `pii_spans`: exact synthetic text and a type label
 - `expected_action`: a symbolic expected tool/policy outcome, not an instruction to execute
 - `should_escalate`: whether the example must be handed to a person
+- `split`: development, validation or heldout (benchmark only)
 
 ## Run
 
-Use Python 3.9+ with no third-party dependencies. Supply one prediction row per dataset row:
+Use Python 3.9+ with no third-party dependencies. Regenerate the draft files with:
 
 ```sh
-python eval/run_eval.py --predictions predictions.jsonl
+python eval/generate_datasets.py
 ```
 
-Each prediction is a JSON object on one line:
+For the primary comparison, pass one prediction for every held-out benchmark row:
 
 ```json
-{"id":"ar-smoke-001","predicted_intent":"billing_dispute","predicted_pii":[{"text":"SYN-0001","type":"synthetic_account_id"}],"predicted_action":"check_bill","escalated":false,"latency_ms":125.4,"cost_usd":0.0008}
+{"id":"ar-bench-0001","predicted_intent":"billing_dispute","predicted_pii":[],"predicted_action":"check_bill","escalated":false,"latency_ms":125.4,"cost_usd":0.0008}
 ```
 
-The evaluator rejects missing, duplicate or extra IDs and invalid/missing fields; it does not call a model or execute tools. `predicted_pii` uses exact text/type matches. Output includes intent accuracy and macro-F1, PII span recall, action and escalation accuracy, wrong-action count, p50/p95 latency, total supplied cost and cost per safe resolution. Cost per safe resolution uses total supplied cost divided by correctly classified, correctly actioned, non-escalated examples whose labels do not require escalation. Supply measured latency and cost from the model adapter; these metrics are not inferred by the evaluator.
+```sh
+python eval/run_eval.py --split heldout --predictions heldout-predictions.jsonl
+python eval/run_eval.py --dataset eval/dataset/pii-stress-draft.jsonl --predictions pii-predictions.jsonl
+python eval/run_eval.py --dataset eval/dataset/smoke.jsonl --split all --predictions smoke-predictions.jsonl
+```
 
-## Before using this as benchmark evidence
+The evaluator rejects missing, duplicate or extra IDs and invalid/missing fields; it does not call a model or execute tools. `predicted_pii` uses exact text/type matches. Output includes overall and per-dialect intent accuracy/macro-F1, exact PII span recall and a 95% Wilson interval, action/escalation accuracy, wrong-action count, p50/p95 latency, supplied total cost and cost per safe resolution. Cost per safe resolution divides total supplied cost by correctly classified, correctly actioned, non-escalated examples whose labels do not require escalation. Supply measured latency and cost from the model adapter; these metrics are not inferred by the evaluator. Do not use the development set to report final model comparisons; use the held-out set only after reviewer approval.
 
-Expand and version the dataset to the planned 240+ examples with a held-out split, dialect-balanced coverage, Arabic-speaking label review and documented provenance. Build a separate PII-positive stress set large enough to assess the proposed recall target, including code-switching, spelling variation and adversarial content. Report per-dialect results and uncertainty; this 20-row smoke fixture is too small to validate the gates in ADR-002. Never put real subscriber text, identifiers, prompts or outputs in this repository.
+## Review and limitations
 
-This fixture and evaluator are released under the repository's MIT licence. The licence for any model evaluated with them is separate and must be checked independently.
+The stress set contains positive cases only. It can measure exact-match recall on its synthetic patterns, but cannot estimate precision, false-positive rates, real-world recall or readiness for the ADR-002 release gate. It includes a small number of boilerplate/code-switch/adversarial suffix patterns but does not model the full range of spelling, morphology, transliteration, embedded identifiers or naturally occurring dialogue. The repeated all-zero placeholders are intentionally fake and are not representative telephone or national-ID examples.
+
+Before treating results as evidence, ask Arabic-speaking reviewers to annotate and correct dialect and intent labels, review PII spans and escalation policy, and approve a versioned held-out set. Add independently authored and reviewed hard cases, negatives for PII precision, naturally varied code-switching and typo/transliteration variants, and document label agreement and provenance. Never add real subscriber text, identifiers, prompts or outputs to this repository.
+
+The repository does not currently contain a root licence file, so confirm the dataset and evaluator licence before external publication. The licence for any model evaluated with them is separate and must be checked independently.
